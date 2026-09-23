@@ -1,0 +1,188 @@
+import 'package:dart_literal/dart_literal.dart';
+import 'package:test/test.dart';
+
+void main() {
+  group('DartLiteralWriter', () {
+    test('scalars', () {
+      final w = DartLiteralWriter();
+      expect(w.literal(null), 'null');
+      expect(w.literal(true), 'true');
+      expect(w.literal(3), '3');
+      expect(w.literal(2.5), '2.5');
+      expect(w.literal('a'), "'a'");
+      expect(w.literal(<String, dynamic>{}), '<String, dynamic>{}');
+      expect(w.literal(<dynamic>[]), '<dynamic>[]');
+    });
+
+    test('quotes: single by default, double around an apostrophe', () {
+      final w = DartLiteralWriter();
+      expect(w.literal("it's"), '"it\'s"');
+      expect(w.literal('say "hi"'), "'say \"hi\"'");
+      expect(w.literal('both \' and "'), "'both \\' and \"'");
+    });
+
+    test(r'escapes backslash, $, and control characters', () {
+      final w = DartLiteralWriter();
+      // backslash and $ alone make a raw string; control characters need
+      // escapes, so those stay in a normal string
+      expect(w.literal(r'a\b'), r"r'a\b'");
+      expect(w.literal(r'$x'), r"r'$x'");
+      expect(w.literal('a\nb\tc'), r"'a\nb\tc'");
+      expect(w.literal('a\\\nb'), r"'a\\\nb'");
+    });
+
+    test('map keeps key order, one entry per line, trailing commas', () {
+      final w = DartLiteralWriter();
+      expect(
+        w.literal({
+          'b': 1,
+          'a': <String, dynamic>{'c': null},
+        }),
+        "{\n  'b': 1,\n  'a': {\n    'c': null,\n  },\n}",
+      );
+    });
+
+    test('a long string splits at spaces into adjacent literals', () {
+      final w = DartLiteralWriter();
+      final long = List.filled(20, 'word').join(' '); // 99 chars
+      final out = w.literal(long);
+      expect(out, contains("' '"));
+      // the first piece may use the whole line; continuations sit 4 deeper
+      final pieces = out.split("' '");
+      expect(pieces.first.length, lessThanOrEqualTo(80 - 2 - 2 - 1 + 2));
+      for (final piece in pieces.skip(1)) {
+        expect(piece.length, lessThanOrEqualTo(80 - 2 - 4 - 2 - 2 + 2));
+      }
+      // joining the pieces gives the original back
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), long);
+      expect(w.splitInList, isFalse);
+      expect(w.header, isEmpty);
+    });
+
+    test('a delimited code list with no spaces splits after ;', () {
+      final w = DartLiteralWriter();
+      final codes = List.generate(30, (i) => '${100 + i}').join(';');
+      final out = w.literal(codes, indent: 6);
+      expect(out, contains(";' '"));
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), codes);
+    });
+
+    test('a long URL is cut at a non-word character, never inside a word', () {
+      final w = DartLiteralWriter();
+      const url =
+          'https://www.cdc.gov/covid/hcp/vaccine-considerations/'
+          'special-situations-and-populations.html#cdc_clinical_guidance';
+      final out = w.literal(url);
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), url);
+      expect(w.hardCut, isFalse);
+    });
+
+    test('a split inside a list is reported and earns the scoped header', () {
+      final w = DartLiteralWriter();
+      final long = List.filled(20, 'word').join(' ');
+      w.literal([long]);
+      expect(w.splitInList, isTrue);
+      expect(w.header, startsWith('// ignore_for_file: no_adjacent_strings'));
+    });
+
+    test('a token longer than the room is cut hard, not left long', () {
+      final w = DartLiteralWriter();
+      final token = 'x' * 150;
+      final out = w.literal('a $token b', indent: 4);
+      for (final piece in out.split("' '")) {
+        expect(piece.length, lessThanOrEqualTo(80 - 10 - 4 - 2 - 2 + 2));
+      }
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), 'a $token b');
+      expect(w.hardCut, isTrue);
+      expect(w.header, contains('missing_whitespace_between_adjacent_strings'));
+    });
+
+    test('a long token is cut after a non-word character when one exists', () {
+      final w = DartLiteralWriter();
+      final token = List.filled(30, 'abcde').join('-'); // 179 chars, no space
+      final out = w.literal(token);
+      expect(w.hardCut, isFalse);
+      for (final piece in out.split("' '")) {
+        expect(
+          piece.replaceAll("'", ''),
+          endsWith('-'),
+          reason: 'every piece but the last ends at a hyphen',
+        );
+        break;
+      }
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), token);
+    });
+
+    test('a hard cut never splits an escape sequence', () {
+      // Reassemble the emitted pieces the way the compiler would; a cut
+      // inside an escape would leave a stray backslash and break this.
+      String rejoin(String out) =>
+          out
+              .split(RegExp("' r?'"))
+              .map(
+                (p) => p
+                    .replaceFirst(RegExp("^r?'"), '')
+                    .replaceFirst(RegExp(r"'$"), ''),
+              )
+              .map((p) => p.replaceAll(r'\\', r'\'))
+              .join();
+      final w = DartLiteralWriter();
+      for (final n in [67, 68, 69, 70]) {
+        final s = '${'y' * n}\\z${'w' * 5}';
+        expect(rejoin(w.literal(s)), s, reason: 'n=$n');
+      }
+    });
+
+    test('escapes with no quote or control character go out raw', () {
+      final w = DartLiteralWriter();
+      expect(w.literal(r'a\_b'), r"r'a\_b'");
+      expect(w.literal(r'$5'), r"r'$5'");
+      expect(w.literal('a\\\nb'), r"'a\\\nb'");
+      expect(w.literal(r"it's \ here"), '"it\'s \\\\ here"');
+    });
+
+    test("a value's first piece is sized for the key sharing its line", () {
+      final w = DartLiteralWriter();
+      final long = List.filled(30, 'word').join(' ');
+      final out = w.literal({'definition': long}, indent: 3);
+      // dart format lays the pieces out: the first on the key's line
+      // (8 spaces + 'definition': + piece + comma), the rest 4 deeper.
+      final entry = out.split('\n')[1].trim();
+      final pieces = entry.substring("'definition': ".length).split("' '");
+      expect(
+        8 + "'definition': ".length + pieces.first.length + 1,
+        lessThanOrEqualTo(80),
+      );
+      for (final piece in pieces.skip(1)) {
+        expect(12 + piece.length + 1, lessThanOrEqualTo(80));
+      }
+    });
+
+    test('anything else is a defect', () {
+      expect(
+        () => DartLiteralWriter().literal(DateTime(2026)),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  test('dartFileForJson composes a complete file', () {
+    final file = dartFileForJson(
+      json: {'resourceType': 'ValueSet', 'id': 'x'},
+      type: 'ValueSet',
+      name: 'x',
+      comment: ['One line.'],
+    );
+    expect(file, '''
+import 'package:fhir_r4/fhir_r4.dart' show ValueSet;
+
+/// One line.
+final ValueSet x = ValueSet.fromJson(
+  {
+    'resourceType': 'ValueSet',
+    'id': 'x',
+  },
+);
+''');
+  });
+}
