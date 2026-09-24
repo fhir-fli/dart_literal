@@ -114,9 +114,17 @@ class DartLiteralWriter {
     // Size every piece for the continuation position: width minus indent,
     // the extra 4, the quotes, and ", " or "," after it.
     final room = lineWidth - 2 * (indent + 1) - 4 - 2 - 2;
-    // The first piece may sit after a key on the same line.
+    // One piece stays whole when it fits after the key on the key's line,
+    // or alone on the line below it (the formatter moves it there). Once a
+    // string is split, `dart format` (tall style, SDK 3.7+) puts the key on
+    // its own line and EVERY piece at the continuation position, so the
+    // first piece is sized like the rest. Measured 2026-09-23 with Dart
+    // 3.13: sizing the first piece for the key's line cut it short for
+    // nothing.
     final firstRoom = lineWidth - 2 * (indent + 1) - firstLineUsed - 2 - 1;
-    if (escaped.length <= firstRoom) return _quote(escaped);
+    if (escaped.length <= firstRoom || escaped.length <= room + 1) {
+      return _quote(escaped);
+    }
     final sep =
         escaped.contains(' ')
             ? ' '
@@ -125,8 +133,8 @@ class DartLiteralWriter {
             : ',';
     final pieces = <String>[];
     var rest = escaped;
-    while (rest.length > (pieces.isEmpty ? firstRoom : room)) {
-      final limit = pieces.isEmpty ? firstRoom : room;
+    while (rest.length > room) {
+      final limit = room;
       var cut = rest.lastIndexOf(sep, limit - 1);
       // No separator in reach (a long HTML attribute, a long token): cut
       // after the last non-word character instead, which the whitespace

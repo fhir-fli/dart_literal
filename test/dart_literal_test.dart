@@ -141,21 +141,34 @@ void main() {
       expect(w.literal(r"it's \ here"), '"it\'s \\\\ here"');
     });
 
-    test("a value's first piece is sized for the key sharing its line", () {
+    test("a split value's pieces are all sized for the line below the key", () {
+      // dart format (tall style) lays a split value out with the key alone
+      // on its line and every piece four deeper, so the first piece is as
+      // wide as the rest; sizing it for the key's line left it short.
       final w = DartLiteralWriter();
       final long = List.filled(30, 'word').join(' ');
       final out = w.literal({'definition': long}, indent: 3);
-      // dart format lays the pieces out: the first on the key's line
-      // (8 spaces + 'definition': + piece + comma), the rest 4 deeper.
       final entry = out.split('\n')[1].trim();
       final pieces = entry.substring("'definition': ".length).split("' '");
-      expect(
-        8 + "'definition': ".length + pieces.first.length + 1,
-        lessThanOrEqualTo(80),
-      );
-      for (final piece in pieces.skip(1)) {
-        expect(12 + piece.length + 1, lessThanOrEqualTo(80));
+      // indent 3 -> pieces at column 8 + 4; quotes and a comma after.
+      const room = 80 - 12 - 2 - 2;
+      for (final piece in pieces) {
+        expect(piece.length, lessThanOrEqualTo(room));
       }
+      // The first piece uses that room, not the shorter key line.
+      expect(pieces.first.length, greaterThan(room - 'word '.length));
+      // The writer's line; the formatter then moves the pieces under the key.
+      expect(entry, startsWith("'definition': 'word"));
+    });
+
+    test('one piece that fits under the key stays whole', () {
+      final w = DartLiteralWriter();
+      // A map value sits one level in: below its key it starts at column
+      // 8, so 69 characters plus quotes and a comma end at 80. That is
+      // longer than the key's own line allows and shorter than a split.
+      final s = 'x' * 69;
+      final out = w.literal({'k': s});
+      expect(out.split('\n')[1].trim(), "'k': '$s',");
     });
 
     test('anything else is a defect', () {
