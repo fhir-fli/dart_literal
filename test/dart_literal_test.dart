@@ -67,13 +67,18 @@ void main() {
       expect(out.replaceAll("' '", '').replaceAll("'", ''), codes);
     });
 
-    test('a long URL is cut at a non-word character, never inside a word', () {
+    test('a string holding a slash or backslash stays whole, however long', () {
+      // lines_longer_than_80_chars exempts a line whose string literal
+      // contains `/` or `\` (the linter's _looksLikeUriOrPath), so a URL or
+      // a path is never split: it stays searchable as one token.
       final w = DartLiteralWriter();
       const url =
           'https://www.cdc.gov/covid/hcp/vaccine-considerations/'
           'special-situations-and-populations.html#cdc_clinical_guidance';
-      final out = w.literal(url);
-      expect(out.replaceAll("' '", '').replaceAll("'", ''), url);
+      expect(w.literal(url), "'$url'");
+      final path = r'C:\\Users\\' + 'x' * 120;
+      expect(w.literal(path), startsWith("r'C:"));
+      expect(w.literal(path), isNot(contains("' '")));
       expect(w.hardCut, isFalse);
     });
 
@@ -124,11 +129,13 @@ void main() {
                     .replaceFirst(RegExp("^r?'"), '')
                     .replaceFirst(RegExp(r"'$"), ''),
               )
-              .map((p) => p.replaceAll(r'\\', r'\'))
+              .map((p) => p.replaceAll(r'\$', r'$'))
               .join();
+      // A raw backslash would exempt the string from splitting altogether,
+      // so the escapes under test are the ones the writer itself adds.
       final w = DartLiteralWriter();
       for (final n in [67, 68, 69, 70]) {
-        final s = '${'y' * n}\\z${'w' * 5}';
+        final s = '${'y' * n}\$z${'w' * 5}';
         expect(rejoin(w.literal(s)), s, reason: 'n=$n');
       }
     });

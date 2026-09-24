@@ -125,6 +125,14 @@ class DartLiteralWriter {
     if (escaped.length <= firstRoom || escaped.length <= room + 1) {
       return _quote(escaped);
     }
+    // `lines_longer_than_80_chars` exempts a line whose string literal
+    // holds a `/` or a `\` (pkg/linter, `_looksLikeUriOrPath`, read
+    // 2026-09-23): "We make an exception for URIs and file paths ... This
+    // makes it easier to search source files for a given path." Such a
+    // string stays whole, however long.
+    if (escaped.contains('/') || escaped.contains(r'\')) {
+      return _quote(escaped);
+    }
     final sep =
         escaped.contains(' ')
             ? ' '

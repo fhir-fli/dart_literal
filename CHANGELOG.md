@@ -1,3 +1,9 @@
+## 0.1.2
+
+- A string holding `/` or `\\` is never split: `lines_longer_than_80_chars`
+  exempts such a line (URIs and file paths), and one token is easier to
+  search for than two pieces.
+
 ## 0.1.1
 
 - A split string's first piece is sized like the rest. `dart format` (tall

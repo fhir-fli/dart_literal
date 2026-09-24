@@ -1,6 +1,6 @@
 name: dart_literal
 description: Renders decoded JSON as Dart source that passes very_good_analysis, for generated data files; with a json_to_dart command.
-version: 0.1.1
+version: 0.1.2
 homepage: https://www.fhirfli.dev/
 repository: https://github.com/fhir-fli/dart_literal
 issue_tracker: https://github.com/fhir-fli/dart_literal/issues
