@@ -153,6 +153,16 @@ class DartLiteralWriter {
       // trips it, and that is reported. Never cut between a backslash and
       // the character it escapes.
       if (cut <= 0) {
+        // The token at the front is longer than the room. If it holds a
+        // slash or backslash it is a URI or a path and its line is exempt
+        // (same linter rule as above): emit it whole as its own piece.
+        final tokenEnd = rest.indexOf(sep);
+        final token = tokenEnd < 0 ? rest : rest.substring(0, tokenEnd + 1);
+        if (token.contains('/') || token.contains(r'\')) {
+          pieces.add(token);
+          rest = rest.substring(token.length);
+          continue;
+        }
         cut = limit - 1;
         while (cut > 0 && _isWord(rest[cut])) {
           cut--;

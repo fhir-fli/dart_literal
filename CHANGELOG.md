@@ -1,3 +1,8 @@
+## 0.1.4
+
+- A URI or path token inside prose is emitted as one whole piece instead of
+  being cut at non-word characters; its line is exempt from the lint.
+
 ## 0.1.3
 
 - The slash exemption applies only to a string with no spaces (a URI or

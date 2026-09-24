@@ -82,6 +82,23 @@ void main() {
       expect(w.hardCut, isFalse);
     });
 
+    test('a URL inside prose is one whole piece, the prose still splits', () {
+      final w = DartLiteralWriter();
+      const url =
+          'https://www.cdc.gov/covid/hcp/vaccine-considerations/'
+          'special-situations-and-populations.html#cdc_clinical_guidance';
+      final prose = 'See ${'word ' * 30}$url and ${'more ' * 30}end';
+      final out = w.literal(prose, indent: 5);
+      final pieces = out.split("' '").map((p) => p.replaceAll("'", ''));
+      expect(pieces, contains('$url '));
+      for (final piece in pieces) {
+        if (piece.contains('/')) continue;
+        expect(piece.length, lessThanOrEqualTo(80 - 12 - 4 - 2 - 2));
+      }
+      expect(pieces.join(), prose);
+      expect(w.hardCut, isFalse);
+    });
+
     test('prose that holds a slash still splits at its spaces', () {
       final w = DartLiteralWriter();
       final prose = 'On 8/22/2025 the dose is 10 mcg/0.3 mL ${'again ' * 20}';
