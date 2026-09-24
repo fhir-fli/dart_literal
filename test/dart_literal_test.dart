@@ -82,6 +82,17 @@ void main() {
       expect(w.hardCut, isFalse);
     });
 
+    test('prose that holds a slash still splits at its spaces', () {
+      final w = DartLiteralWriter();
+      final prose = 'On 8/22/2025 the dose is 10 mcg/0.3 mL ${'again ' * 20}';
+      final out = w.literal(prose);
+      expect(out, contains("' '"));
+      for (final piece in out.split("' '")) {
+        expect(piece.length, lessThanOrEqualTo(80 - 2 - 4 - 2 - 2 + 2));
+      }
+      expect(out.replaceAll("' '", '').replaceAll("'", ''), prose);
+    });
+
     test('a split inside a list is reported and earns the scoped header', () {
       final w = DartLiteralWriter();
       final long = List.filled(20, 'word').join(' ');

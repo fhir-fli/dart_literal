@@ -1,3 +1,8 @@
+## 0.1.3
+
+- The slash exemption applies only to a string with no spaces (a URI or
+  path as one token); prose holding a date or a unit splits as before.
+
 ## 0.1.2
 
 - A string holding `/` or `\\` is never split: `lines_longer_than_80_chars`
